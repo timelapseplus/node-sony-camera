@@ -1,35 +1,74 @@
 # SonyCamera
 
-This aims to communicate with Sony camera through [Camera Remote API SDK](http://developer.sony.com/develop/cameras/) from web app which is implemented in JavaScript.
+Originally forked from https://github.com/eqot/RemoteCamera
 
-Forked from https://github.com/eqot/RemoteCamera
-
-
-## Technical details
-
-This contains two parts, server- and client-side code.
-
-Server-side code is implemented for client to communicate with Sony camera.
-Since Camera Remote API does not support [CORS](http://www.w3.org/TR/cors/) unfortunately, client-side code in browser cannot access to Sony camera directly. So this server-side code helps for API call from client to Sony camera to be bypassed.
-Also the server supports that liveview data from Sony camera is converted into motion JPEG so that the client can easily show the liveview in HTML file.
-
-Client-side code is a main part which has UI widgets for controlling Sony camera and showing liveview.
+Rebuilt as a library with event support.
 
 
-## How to use
+## Installation
 
 ```
-git clone https://github.com/eqot/RemoteCamera.git
-cd RemoteCamera
-npm install && bower install
-grunt build
-npm start
+git clone https://github.com/timelapseplus/node-sony-camera.git
+cd node-sony-camera
+npm install
 ```
 
+## Usage
 
-## Limitations
+```
+var SonyCamera = require('SonyCamera');
 
-* Since this has not supported device discovery yet, ip address and port number for Sony camera is hard-coded for [DSC-QX100](http://developer.sony.com/devices/cameras/sony-smartphone-attachable-lens-style-camera-dsc-qx100/)
+var cam = new SonyCamera();
+
+cam.on('update', function(param, data) {
+	console.log("updated: " + param  + " = " + data.current);
+});
+
+cam.connect(); // puts the camera in remote mode and starts monitoring events
+```
+
+### cam.params
+
+Contains a list of parameters available.  Example:
+  ```
+  cam.params: 
+   { cameraFunction: { current: 'Remote Shooting', available: [Object] },
+     postviewImageSize: { current: '2M', available: [Object] },
+     shootMode: { current: 'still', available: [Object] },
+     exposureMode: { current: 'Manual', available: [] },
+     flashMode: { current: 'on', available: [] },
+     focusMode: { current: 'MF', available: [Object] },
+     isoSpeedRate: { current: '1250', available: [Object] },
+     shutterSpeed: { current: '1/60', available: [Object] },
+     fNumber: { current: '5.6', available: [Object] }
+   }
+ ```
+
+### cam.set(param, value, callback)
+
+Sets a parameter. Check the cam.params property to find available options.
+
+
+## Demo
+
+[screenshot]: https://github.com/timelapseplus/node-sony-camera/blob/master/demo/screenshot.png "demo screenshot"
+
+The included demo is a lightweight app to show the basic features, allowing interaction with the camera in realtime with liveview and live-updating parameters.
+
+1. Setup:
+```
+cd node-sony-camera/demo
+npm install
+```
+2. Connect wifi to camera
+
+3. Start demo app
+```
+node ./server.js
+```
+
+4. Open http://localhost:3000/
+
 
 
 ## License
