@@ -1,0 +1,103 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Socket.IO chat</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { font: 13px Helvetica, Arial; }
+      form button { width: 9%; background: rgb(130, 224, 255); border: none; padding: 10px; }
+      div { display: table-cell; position: fixed; }
+      #panel1 {width: 15%; border-right: 3px solid #ddd; height: 100%; left: 0px;}
+      #panel2 {width: 70%; border-right: 3px solid #ddd; height: 100%; left: 15%;}
+      #panel3 {width: 15%; height: 100%; left: 85%;}
+      #updates { list-style-type: none; margin: 0; padding: 0; }
+      #updates li { padding: 5px 10px; }
+      #updates li:nth-child(odd) { background: #eee; }
+      button {width: 100%; background-color: #eee; padding: 10px;}
+    </style>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/jquery.js"></script>
+    <script>
+      var socket = io();
+
+      var params = {};
+
+      function buildAttrs() {
+        for(param in params) {
+          var select = $("#param-" + param);
+          if(select.length) {
+            select.empty();
+          } else {
+            console.log("adding param " + param);
+            $('#params').append('<li style="padding: 10px;">' + param + ': <select id="param-' + param + '"></select></li>');
+            select = $("#param-" + param);
+            (function(p) {
+              select.change(function(){
+                console.log("setting " + p + " to " + $(this).val());
+                socket.emit('set', p, $(this).val());
+              });              
+            })(param);
+          }
+          console.log(select);
+          for(var i = 0; i < params[param].available.length; i++) {
+            console.log("buildAttrs " + param + "  " + params[param].available[i]);
+            var selected = "";
+            if(params[param].current == params[param].available[i]) selected = "selected ";
+            select.append($("<option " + selected + "/>").val(params[param].available[i]).text(params[param].available[i]));
+          }
+        }
+      }
+
+      $('form').submit(function(){
+        socket.emit('message', $('#m').val());
+        $('#m').val('');
+        return false;
+      });
+      socket.on('update', function(param, data){
+        $('#updates').append($('<li>').text(param + ": " + data.current));
+        params[param] = data;
+        buildAttrs();
+      });
+      socket.on('status', function(message){
+        $('#updates').append($('<li>').text(message));
+      });
+      socket.on('params', function(data){
+        params = data;
+        buildAttrs();
+      });
+      socket.on('image', function(img) {
+        $("#img").attr('src', 'data:image/png;base64,' + img);
+      });
+
+      $(window).ready(function(){
+        console.log("ready");
+        $('#capture').click(function(){
+          console.log("sending capture command");
+          socket.emit("capture");
+        });
+        $('#startViewfinder').click(function(){
+          console.log("sending startViewfinder command");
+          socket.emit("startViewfinder");
+        });
+        $('#stopViewfinder').click(function(){
+          console.log("sending stopViewfinder command");
+          socket.emit("stopViewfinder");
+        });
+      });
+    </script>
+  </head>
+  <body>
+    <div id="panel1">
+      <ul id="params"></ul>
+      <button id="capture">Capture</button>
+      <button id="startViewfinder">Liveview On</button>
+      <button id="stopViewfinder">Liveview Off</button>
+    </div>
+    <div id="panel2">
+      <img id="img" width="100%">
+    </div>
+    <div id="panel3">
+      <ul id="updates"></ul>
+    </div>
+  </body>
+</html>
