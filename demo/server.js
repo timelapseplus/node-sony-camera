@@ -8,6 +8,9 @@ var cam = new SonyCamera();
 cam.on('update', function(param, value) {
 	io.emit('update', param, value);
 });
+cam.on('liveviewJpeg', function(image) {
+	if(image) io.emit('image', image.toString('base64'));
+});
 
 cam.connect();
 
@@ -39,10 +42,6 @@ io.on('connection', function(socket){
   socket.on('set', function(param, value){
   	cam.set(param, value);
   });
-
-  cam.on('liveviewJpeg', function(image) {
-	if(image) io.emit('image', image.toString('base64'));
-  })
 });
 
 http.listen(3000, function(){
