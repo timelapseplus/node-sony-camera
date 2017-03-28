@@ -8,6 +8,10 @@ Rebuilt as a library with event support.
 ## Installation
 
 ```
+npm install sony-camera
+```
+Or, for development and using the demo app:
+```
 git clone https://github.com/timelapseplus/node-sony-camera.git
 cd node-sony-camera
 npm install
@@ -16,7 +20,7 @@ npm install
 # Usage
 
 ```
-var SonyCamera = require('SonyCamera');
+var SonyCamera = require('sony-camera');
 
 var cam = new SonyCamera();
 

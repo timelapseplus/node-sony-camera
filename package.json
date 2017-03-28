@@ -1,6 +1,6 @@
 {
   "author": "Elijah Parker",
-  "name": "SonyCamera",
+  "name": "sony-camera",
   "description": "Wifi control for Sony Alpha cameras",
   "homepage": "https://github.com/timelapseplus/node-sony-camera",
   "version": "0.0.1",
