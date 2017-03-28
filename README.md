@@ -51,7 +51,7 @@ Sets a parameter. Check the cam.params property to find available options.
 
 ## Demo
 
-[screenshot]: https://github.com/timelapseplus/node-sony-camera/blob/master/demo/screenshot.png "demo screenshot"
+![alt text](https://github.com/timelapseplus/node-sony-camera/blob/master/demo/screenshot.png "demo screenshot")
 
 The included demo is a lightweight app to show the basic features, allowing interaction with the camera in realtime with liveview and live-updating parameters.
 
@@ -60,7 +60,7 @@ The included demo is a lightweight app to show the basic features, allowing inte
 cd node-sony-camera/demo
 npm install
 ```
-2. Connect wifi to camera
+2. Connect computer wifi to camera (on the camera, go to Menu->Appication->Smart Remote Control to enable remote wifi mode)
 
 3. Start demo app
 ```
@@ -73,4 +73,4 @@ node ./server.js
 
 ## License
 
-Copyright &copy; 2013-2014 Ikuo Terado. Released under the [MIT license](http://www.opensource.org/licenses/mit-license.php).
+Copyright &copy; 2013-2014 Ikuo Terado, 2017 Elijah Parker. Released under the [MIT license](http://www.opensource.org/licenses/mit-license.php).
