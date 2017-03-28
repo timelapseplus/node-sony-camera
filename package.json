@@ -1,6 +1,10 @@
 {
+  "author": "Elijah Parker",
   "name": "SonyCamera",
+  "description": "Wifi control for Sony Alpha cameras",
+  "homepage": "https://github.com/timelapseplus/node-sony-camera",
   "version": "0.0.1",
+  "main": "./index.js",
   "dependencies": {
     "ahr2": "~2.3.2",
     "util": "^0.10.3"
@@ -8,5 +12,18 @@
   "devDependencies": {},
   "engines": {
     "node": ">=0.8.0"
+  },
+  "keywords": [
+    "photography",
+    "sony",
+    "sony alpha",
+    "sony a7",
+    "sony a7s",
+    "sony a7r",
+    "camera"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/timelapseplus/node-sony-camera.git"
   }
 }
