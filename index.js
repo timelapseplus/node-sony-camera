@@ -43,6 +43,7 @@ var EventEmitter = require('events').EventEmitter;
       hostname: this.url,
       port: this.port,
       pathname: this.path,
+      timeout: (method == "startRecMode") ? 2 : 60000,
       body: JSON.stringify(this.rpcReq)
     }).when(function (err, ahr, rpcRes) {
       if (callback) {
@@ -73,12 +74,14 @@ var EventEmitter = require('events').EventEmitter;
           }
           if(!item) {
             continue;
-          } else if(item.type && item.type == 'cameraStatus' && self.status != item.cameraStatus) {
+          } else if(item.type && item.type == 'cameraStatus') {
             self.status = item.cameraStatus;
             if(self.status == "NotReady") self.connected = false;
             if(self.status == "IDLE") self.ready = true; else self.ready = false;
-            self.emit('status', item.cameraStatus);
-            console.log("status", self.status);
+            if(self.status != item.cameraStatus) {
+              self.emit('status', item.cameraStatus);
+              console.log("status", self.status);
+            }
           } else if(item.type && item.type == 'storageInformation') {
             for(var j = 0; j < item.items.length; j++) {
               if(item.items[j].recordTarget) {
@@ -119,9 +122,13 @@ var EventEmitter = require('events').EventEmitter;
             setTimeout(_checkEvents, 5000);
           }
         };
-        self._processEvents(false, _checkEvents);
+        self._processEvents(false, function(){
+          callback && callback(err);
+          _checkEvents();
+        });
+      } else {
+        callback && callback(err);
       }
-      callback && callback(err);
     });
   };
 
@@ -150,18 +157,9 @@ var EventEmitter = require('events').EventEmitter;
       var bufferIndex = 0;
 
       var liveviewReq = http.request(liveviewUrl, function (liveviewRes) {
-        // console.log(data);
-
         var imageBuffer;
 
-        var buffer = Buffer.alloc(0);
-
-        //res.writeHead(200, {
-        //  'Expires': 'Mon, 01 Jul 1980 00:00:00 GMT',
-        //  'Cache-Control': 'no-cache, no-store, must-revalidate',
-        //  'Pragma': 'no-cache',
-        //  'Content-Type': 'multipart/x-mixed-replace;boundary=' + boundary
-        //});
+        var buffer = Buffer.alloc ? Buffer.alloc(0) : new Buffer(0);
 
         liveviewRes.on('data', function (chunk) {
           if (jpegSize === 0) {
@@ -171,22 +169,19 @@ var EventEmitter = require('events').EventEmitter;
               jpegSize =
                 buffer.readUInt8(COMMON_HEADER_SIZE + JPEG_SIZE_POSITION) * 65536 +
                 buffer.readUInt16BE(COMMON_HEADER_SIZE + JPEG_SIZE_POSITION + 1);
-              // console.log(jpegSize);
-              imageBuffer = Buffer.alloc(jpegSize);
+
+              imageBuffer = Buffer.alloc ? Buffer.alloc(jpegSize) : new Buffer(jpegSize);
 
               paddingSize = buffer.readUInt8(COMMON_HEADER_SIZE + PADDING_SIZE_POSITION);
-              // console.log(paddingSize);
 
               buffer = buffer.slice(8 + 128);
               if (buffer.length > 0) {
                 buffer.copy(imageBuffer, bufferIndex, 0, buffer.length);
                 bufferIndex += buffer.length;
-                //imageBuffer.write(buffer, 0, buffer.length);
               }
             }
           } else {
             chunk.copy(imageBuffer, bufferIndex, 0, chunk.length);
-            //imageBuffer.write(chunk, 0, chunk.length);
             bufferIndex += chunk.length;
 
             if (chunk.length < jpegSize) {
@@ -229,7 +224,8 @@ var EventEmitter = require('events').EventEmitter;
       enableDoubleCallback = false;
     }
 
-    if(!this.ready) return callback && callback('camera not ready');
+    if(this.status != "IDLE") return callback && callback('camera not ready');
+    //if(!this.ready) return callback && callback('camera not ready');
     this.ready = false;
 
     self.call('actTakePicture', null, function (err, output) {
@@ -243,6 +239,8 @@ var EventEmitter = require('events').EventEmitter;
       var parts = url.split('?')[0].split('/');
       var photoName = parts[parts.length - 1];
       console.log("Capture complete:", photoName);
+      this.ready = true;
+
       if(enableDoubleCallback) callback && callback(err, photoName);
 
       request.get(url).when(function (err, ahr, data) {
