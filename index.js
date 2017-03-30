@@ -239,7 +239,6 @@ var EventEmitter = require('events').EventEmitter;
       var parts = url.split('?')[0].split('/');
       var photoName = parts[parts.length - 1];
       console.log("Capture complete:", photoName);
-      this.ready = true;
 
       if(enableDoubleCallback) callback && callback(err, photoName);
 
