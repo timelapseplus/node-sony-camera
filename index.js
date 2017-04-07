@@ -332,11 +332,10 @@ var minVersionRequired = '2.1.4';
 
         var error;
         if (statusCode !== 200) {
-          error = new Error(`Request Failed.\n` +
-                            `Status Code: ${statusCode}`);
+          error = new Error('Request Failed. Status Code:', statusCode);
         }
         if (error) {
-          console.log(error.message);
+          //console.log(error.message);
           // consume response data to free up memory
           res.resume();
           callback && callback(err);
