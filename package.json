@@ -3,7 +3,7 @@
   "name": "sony-camera",
   "description": "Wifi control for Sony Alpha cameras",
   "homepage": "https://github.com/timelapseplus/node-sony-camera",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "main": "./index.js",
   "dependencies": {
     "semver": "^5.3.0",
