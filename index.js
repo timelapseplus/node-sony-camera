@@ -4,8 +4,11 @@ var fs = require('fs');
 var url = require('url');
 var http = require('http');
 var request = require('ahr2');
+var semver = require('semver');
 var util = require('util');
 var EventEmitter = require('events').EventEmitter;
+
+var minVersionRequired = '2.1.4';
 
 (function () {
 
@@ -34,6 +37,7 @@ var EventEmitter = require('events').EventEmitter;
   };
 
   SonyCamera.prototype.call = function (method, params, callback) {
+    var self = this;
     this.rpcReq.method = method;
     this.rpcReq.params = params || [];
     //console.log(this.rpcReq);
@@ -43,15 +47,21 @@ var EventEmitter = require('events').EventEmitter;
       hostname: this.url,
       port: this.port,
       pathname: this.path,
-      timeout: (method == "startRecMode") ? 2 : 60000,
+      timeout: (method == "getApplicationInfo") ? 2 : 60000,
       body: JSON.stringify(this.rpcReq)
     }).when(function (err, ahr, rpcRes) {
-      if (callback) {
-        var result = rpcRes ? rpcRes.result : null;
-        var error = (rpcRes ? rpcRes.error : null) || err;
-        callback(error, result);
-        //console.log(result);
+      var result = rpcRes ? rpcRes.result : null;
+      var error = (rpcRes ? rpcRes.error : null) || err;
+      if(error) {
+        if(error.length > 0 && error[0] == 1 && method == 'getEvent') {
+          setTimeout(function() {
+            self.call(method, params, callback); 
+          });
+          return;
+        }
+        console.log("SonyWifi: error during request", method, error);
       }
+      callback && callback(error, result);
     });
   };
 
@@ -80,7 +90,7 @@ var EventEmitter = require('events').EventEmitter;
             if(self.status == "IDLE") self.ready = true; else self.ready = false;
             if(self.status != item.cameraStatus) {
               self.emit('status', item.cameraStatus);
-              console.log("status", self.status);
+              console.log("SonyWifi: status", self.status);
             }
           } else if(item.type && item.type == 'storageInformation') {
             for(var j = 0; j < item.items.length; j++) {
@@ -112,22 +122,38 @@ var EventEmitter = require('events').EventEmitter;
 
   SonyCamera.prototype.connect = function (callback) {
     var self = this;
-    this.call('startRecMode', null, function(err) {
-      if(!err && !self.connected) {
-        self.connected = true;
-        var _checkEvents = function(err) {
-          if(!err) {
-            if(self.connected) self._processEvents(true, _checkEvents);
-          } else {
-            setTimeout(_checkEvents, 5000);
-          }
-        };
-        self._processEvents(false, function(){
-          callback && callback(err);
-          _checkEvents();
-        });
+    this.getAppVersion(function(err, version) {
+      if(!err && version) {
+        console.log("SonyWifi: app version", version);
+        if(semver.gte(version, minVersionRequired)) {
+          self.call('startRecMode', null, function(err) {
+            if(!err && !self.connected) {
+              self.connected = true;
+              var _checkEvents = function(err) {
+                if(!err) {
+                  if(self.connected) self._processEvents(true, _checkEvents);
+                } else {
+                  setTimeout(_checkEvents, 5000);
+                }
+              };
+              self._processEvents(false, function(){
+                callback && callback(err);
+                _checkEvents();
+              });
+            } else {
+              callback && callback(err);
+            }
+          });
+        } else {
+          callback(
+            {
+              err: 'APPVERSION',
+              message:'Could not connect to camera -- remote control application must be updated (currently installed: ' + version + ', should be ' + minVersionRequired + ' or newer)'
+            }
+          );
+        }
       } else {
-        callback && callback(err);
+        callback(err);
       }
     });
   };
@@ -228,9 +254,13 @@ var EventEmitter = require('events').EventEmitter;
     //if(!this.ready) return callback && callback('camera not ready');
     this.ready = false;
 
-    self.call('actTakePicture', null, function (err, output) {
+    var processCaptureResult = function(err, output) {
       if (err) {
-        callback && callback(err);
+        if(err.length > 0 && err[0] == 40403) { // capture still in progress
+          self.call('awaitTakePicture', null, processCaptureResult);
+        } else {
+          callback && callback(err);
+        }
         return;
       }
 
@@ -238,15 +268,17 @@ var EventEmitter = require('events').EventEmitter;
 
       var parts = url.split('?')[0].split('/');
       var photoName = parts[parts.length - 1];
-      console.log("Capture complete:", photoName);
+      console.log("SonyWifi: Capture complete:", photoName);
 
       if(enableDoubleCallback) callback && callback(err, photoName);
 
       request.get(url).when(function (err, ahr, data) {
-        console.log("Retrieved preview image:", photoName);
+        console.log("SonyWifi: Retrieved preview image:", photoName);
         callback && callback(err, photoName, data);
       });
-    });
+    }
+
+    self.call('actTakePicture', null, processCaptureResult);
   };
 
   SonyCamera.prototype.zoomIn = function (callback) {
@@ -255,6 +287,16 @@ var EventEmitter = require('events').EventEmitter;
 
   SonyCamera.prototype.zoomOut = function (callback) {
     this.call('actZoom', ['out', 'start'], callback);
+  };
+
+  SonyCamera.prototype.getAppVersion = function (callback) {
+    this.call('getApplicationInfo', null, function(err, res) {
+      var version = null;
+      if(!err && res && res.length > 1) {
+        version = res[1];
+      }
+      callback && callback(err, version);
+    });
   };
 
   SonyCamera.prototype.set = function (param, value, callback) {
