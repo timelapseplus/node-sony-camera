@@ -3,7 +3,6 @@
 var fs = require('fs');
 var url = require('url');
 var http = require('http');
-var request = require('ahr2');
 var semver = require('semver');
 var util = require('util');
 var EventEmitter = require('events').EventEmitter;
@@ -40,34 +39,77 @@ var minVersionRequired = '2.1.4';
     var self = this;
     this.rpcReq.method = method;
     this.rpcReq.params = params || [];
-    //console.log(this.rpcReq);
+    var postData = JSON.stringify(this.rpcReq);
 
-    request({
+    var timeoutHandle = null;
+
+    var req = http.request({
       method: 'POST',
       hostname: this.url,
       port: this.port,
-      pathname: this.path,
-      timeout: (method == "getApplicationInfo") ? 2 : 60000,
-      body: JSON.stringify(this.rpcReq)
-    }).when(function (err, ahr, rpcRes) {
-      var result = rpcRes ? rpcRes.result : null;
-      var error = (rpcRes ? rpcRes.error : null) || err;
-      if(error) {
-        if(error.length > 0 && error[0] == 1 && method == 'getEvent') {
-          setTimeout(function() {
-            self.call(method, params, callback); 
-          });
-          return;
-        }
-        console.log("SonyWifi: error during request", method, error);
+      path: this.path,
+      timeout: 2000,
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Length': Buffer.byteLength(postData)
       }
-      callback && callback(error, result);
+    }, function (res) {
+      //console.log(res);
+      res.setEncoding('utf8');
+      var rawData = '';
+      res.on('data', function(chunk) {
+        rawData += chunk;
+      });
+      var parsedData = null;
+      res.on('end', function() {
+        clearTimeout(timeoutHandle);
+        try {
+          parsedData = JSON.parse(rawData);
+          var result = parsedData ? parsedData.result : null;
+          var error = parsedData ? parsedData.error : null;
+          //console.log(result);
+          if(error) {
+            if(error.length > 0 && error[0] == 1 && method == 'getEvent') {
+              setTimeout(function() {
+                self.call(method, params, callback); 
+              });
+              return;
+            }
+            console.log("SonyWifi: error during request", method, error);
+          }
+          //console.log("completed", error, result);
+          callback && callback(error, result);
+        } catch (e) {
+          console.log(e.message);
+          callback && callback(e);
+        }
+      });
+
+    });
+
+    timeoutHandle = setTimeout(function() {
+      req.abort();
+      console.log("SonyWifi: network appears to be disconnected");
+      self.emit('disconnected');
+    }, 30000);
+
+    req.write(postData);
+    req.end();
+
+    req.on('error', function(err){
+      if(err && err.code) {
+        console.log("SonyWifi: network appears to be disconnected");
+        self.emit('disconnected');
+      }
+      callback && callback(err);
     });
   };
 
   SonyCamera.prototype._processEvents = function (waitForChange, callback) {
     var self = this;
+    this.eventPending = true;
     this.call('getEvent', [waitForChange || false], function (err, results) {
+      self.eventPending = false;
       // console.log(err);
       if (!err) {
         for(var i = 0; i < results.length; i++) {
@@ -86,7 +128,11 @@ var minVersionRequired = '2.1.4';
             continue;
           } else if(item.type && item.type == 'cameraStatus') {
             self.status = item.cameraStatus;
-            if(self.status == "NotReady") self.connected = false;
+            if(self.status == "NotReady") {
+              self.connected = false;
+              console.log("SonyWifi: disconnected, trying to reconnect");
+              setTimeout(function(){self.connect(); }, 2500);
+            }
             if(self.status == "IDLE") self.ready = true; else self.ready = false;
             if(self.status != item.cameraStatus) {
               self.emit('status', item.cameraStatus);
@@ -122,6 +168,9 @@ var minVersionRequired = '2.1.4';
 
   SonyCamera.prototype.connect = function (callback) {
     var self = this;
+    if(this.connecting) return callback && callback('Already trying to connect');
+    this.connecting = true;
+    console.log("SonyWifi: connecting...");
     this.getAppVersion(function(err, version) {
       if(!err && version) {
         console.log("SonyWifi: app version", version);
@@ -131,16 +180,18 @@ var minVersionRequired = '2.1.4';
               self.connected = true;
               var _checkEvents = function(err) {
                 if(!err) {
-                  if(self.connected) self._processEvents(true, _checkEvents);
+                  if(self.connected) self._processEvents(true, _checkEvents); else console.log("SonyWifi: disconnected, stopping event poll");
                 } else {
                   setTimeout(_checkEvents, 5000);
                 }
               };
               self._processEvents(false, function(){
+                self.connecting = false;
                 callback && callback(err);
                 _checkEvents();
               });
             } else {
+              self.connecting = false;
               callback && callback(err);
             }
           });
@@ -153,7 +204,8 @@ var minVersionRequired = '2.1.4';
           );
         }
       } else {
-        callback(err);
+        self.connecting = false;
+        callback && callback(err);
       }
     });
   };
@@ -272,9 +324,36 @@ var minVersionRequired = '2.1.4';
 
       if(enableDoubleCallback) callback && callback(err, photoName);
 
-      request.get(url).when(function (err, ahr, data) {
-        console.log("SonyWifi: Retrieved preview image:", photoName);
-        callback && callback(err, photoName, data);
+      http.get(url, function(res) {
+        //res.setEncoding('binary');
+
+        var statusCode = res.statusCode;
+        var contentType = res.headers['content-type'];
+
+        var error;
+        if (statusCode !== 200) {
+          error = new Error(`Request Failed.\n` +
+                            `Status Code: ${statusCode}`);
+        }
+        if (error) {
+          console.log(error.message);
+          // consume response data to free up memory
+          res.resume();
+          callback && callback(err);
+          return;
+        }
+
+        var rawData = [];
+        res.on('data', function(chunk) {
+          //console.log("got data", chunk.length);
+          rawData.push(chunk);
+        });
+        res.on('end', function() {
+          console.log("SonyWifi: Retrieved preview image:", photoName);
+          callback && callback(null, photoName, Buffer.concat(rawData));
+        });
+      }).on('error', function(e) {
+        callback && callback(e);
       });
     }
 

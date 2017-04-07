@@ -10,7 +10,7 @@ cam.on('update', function(param, value) {
 });
 cam.on('liveviewJpeg', function(image) {
 	if(image) io.emit('image', image.toString('base64'));
-});p
+});
 
 cam.connect();
 
