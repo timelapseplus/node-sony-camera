@@ -89,7 +89,7 @@ var minVersionRequired = '2.1.4';
 
     timeoutHandle = setTimeout(function() {
       req.abort();
-      console.log("SonyWifi: network appears to be disconnected");
+      console.log("SonyWifi: network appears to be disconnected (timeout for " + method + ")");
       self.emit('disconnected');
     }, 30000);
 
@@ -98,7 +98,7 @@ var minVersionRequired = '2.1.4';
 
     req.on('error', function(err){
       if(err && err.code) {
-        console.log("SonyWifi: network appears to be disconnected");
+        console.log("SonyWifi: network appears to be disconnected (error for " + method + ": " + err + ")");
         self.emit('disconnected');
       }
       callback && callback(err);
