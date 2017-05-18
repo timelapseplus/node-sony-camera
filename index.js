@@ -153,7 +153,7 @@ var minVersionRequired = '2.1.4';
               available: item[item.type + 'Candidates'],
             }
             if(oldVal !== self.params[item.type].current) {
-              console.log(item.type + " = " + self.params[item.type].current);
+              console.log("SonyWifi: " + item.type + " = " + self.params[item.type].current + "(+" + (self.params[item.type].available ? self.params[item.type].available.length : "NULL")  + " available)");
               self.emit("update", item.type, self.params[item.type]);
             }
           } 
