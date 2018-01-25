@@ -15,6 +15,7 @@ var minVersionRequired = '2.1.4';
     this.url = url || '192.168.122.1';
     this.port = port || 8080;
     this.path = path || '/sony/camera';
+    this.method = "old";
 
     this.rpcReq = {
       id: 1,
@@ -91,14 +92,24 @@ var minVersionRequired = '2.1.4';
       req.abort();
       console.log("SonyWifi: network appears to be disconnected (timeout for " + method + ")");
       self.emit('disconnected');
-    }, 30000);
+    }, 60000);
 
     req.write(postData);
     req.end();
 
     req.on('error', function(err){
+      clearTimeout(timeoutHandle);
       if(err && err.code) {
-        console.log("SonyWifi: network appears to be disconnected (error for " + method + ": " + err + ")");
+        console.log("SonyWifi: network appears to be disconnected (error for " + method + ": " + err + ", err.code:", err.code, ")");
+        if(method == "getApplicationInfo" && err.code == 'ECONNREFUSED' && self.method == 'old') {
+          console.log("SonyWifi: ECONNREFUSED when connecting to port " + this.port + ", trying new method...");
+          self.method = 'new';
+          self.port = 10000;
+          setTimeout(function() {
+            self.call(method, params, callback); 
+          });
+          return;
+        }
         self.emit('disconnected');
       }
       callback && callback(err);
@@ -175,26 +186,33 @@ var minVersionRequired = '2.1.4';
       if(!err && version) {
         console.log("SonyWifi: app version", version);
         if(semver.gte(version, minVersionRequired)) {
-          self.call('startRecMode', null, function(err) {
-            if(!err && !self.connected) {
-              self.connected = true;
-              var _checkEvents = function(err) {
-                if(!err) {
-                  if(self.connected) self._processEvents(true, _checkEvents); else console.log("SonyWifi: disconnected, stopping event poll");
-                } else {
-                  setTimeout(_checkEvents, 5000);
-                }
-              };
-              self._processEvents(false, function(){
-                self.connecting = false;
-                callback && callback(err);
-                _checkEvents();
-              });
-            } else {
+          var connected = function() {
+            self.connected = true;
+            var _checkEvents = function(err) {
+              if(!err) {
+                if(self.connected) self._processEvents(true, _checkEvents); else console.log("SonyWifi: disconnected, stopping event poll");
+              } else {
+                setTimeout(_checkEvents, 5000);
+              }
+            };
+            self._processEvents(false, function(){
               self.connecting = false;
               callback && callback(err);
-            }
-          });
+              _checkEvents();
+            });
+          }
+          if(self.method == "old") {
+            self.call('startRecMode', null, function(err) {
+              if(!err && !self.connected) {
+                connected();
+              } else {
+                self.connecting = false;
+                callback && callback(err);
+              }
+            });
+          } else {
+            connected();
+          }
         } else {
           callback(
             {
@@ -302,8 +320,11 @@ var minVersionRequired = '2.1.4';
       enableDoubleCallback = false;
     }
 
-    if(this.status != "IDLE") return callback && callback('camera not ready');
-    //if(!this.ready) return callback && callback('camera not ready');
+    if(this.status != "IDLE") {
+      console.log("SonyWifi: camera busy, capture not available.  Status:", this.status);
+      return callback && callback('camera not ready');
+    }
+
     this.ready = false;
 
     var processCaptureResult = function(err, output) {
